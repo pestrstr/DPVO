@@ -168,8 +168,10 @@ class DPVO:
         poses = poses.inv().data.cpu().numpy()
         tstamps = np.array(self.tlist, dtype=np.float)
 
+        print("CHECK")
         if self.viewer is not None:
             self.viewer.join()
+            print("DOES VIEWER JOIN?")
 
         return poses, tstamps
 

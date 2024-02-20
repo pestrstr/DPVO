@@ -31,6 +31,8 @@ class Viewer {
     };
 
     void join() {
+      std::thread::id this_id = std::this_thread::get_id();
+      std::cout << "thread " << this_id << " is calling tViewer.join()...\n";
       tViewer.join();
     };
 
@@ -262,7 +264,9 @@ void Viewer::loop() {
 void Viewer::run() {
 
   // initialize OpenGL buffers
-
+  std::thread::id this_id = std::this_thread::get_id();
+  std::cout << "thread " << this_id << " is the tViewer thread\n";
+  
   pangolin::CreateWindowAndBind("DPVO", 2*640, 2*480);
 
 	const int UI_WIDTH = 180;
@@ -311,11 +315,13 @@ void Viewer::run() {
 
     // draw poses using OpenGL
     mtx_update.lock();
-    drawPointsCPU();
+    // drawPointsCPU();
     drawPoses();
     mtx_update.unlock();
 
+    std::cout << "Before mtx.lock" << std::endl;
     mtx.lock();
+    std::cout << "After mtx.lock" << std::endl;
     if (redraw) {
       redraw = false;
       texVideo.Upload(image.data_ptr(), GL_BGR, GL_UNSIGNED_BYTE);
@@ -327,12 +333,12 @@ void Viewer::run() {
     texVideo.RenderToViewportFlipY();
 
     pangolin::FinishFrame();
+    std::cout << "New iteration of Pangolin loop" << std::endl;
   }
 
   // destroy OpenGL buffers
   // destroyVBO();
-  running = false;
-
+  close();
   exit(1);
 }
 

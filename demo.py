@@ -11,8 +11,9 @@ from plyfile import PlyElement, PlyData
 from dpvo.utils import Timer
 from dpvo.dpvo import DPVO
 from dpvo.config import cfg
-from dpvo.stream import image_stream, video_stream
+from dpvo.stream import image_stream, video_stream, realsense_stream, camera_stream
 from dpvo.plot_utils import plot_trajectory, save_trajectory_tum_format
+from utils.realsense import init_rs_camera
 
 SKIP = 0
 
@@ -22,15 +23,29 @@ def show_image(image, t=0):
     cv2.waitKey(t)
 
 @torch.no_grad()
-def run(cfg, network, imagedir, calib, stride=1, skip=0, viz=False, timeit=False, save_reconstruction=False):
+def run(cfg, network, imagedir, calib, stride=1, skip=0, camera_input=False, viz=False, timeit=False, save_reconstruction=False):
 
     slam = None
     queue = Queue(maxsize=8)
-
-    if os.path.isdir(imagedir):
-        reader = Process(target=image_stream, args=(queue, imagedir, calib, stride, skip))
+    if camera_input:
+        # width = 640
+        # height = 480
+        # (
+        #     pipeline, 
+        #     align, 
+        #     _, 
+        #     _, 
+        #     depth_scale_meters, 
+        #     _, 
+        #     _ 
+        # ) = init_rs_camera(width, height)
+        camera_idx = 6
+        reader = Process(target=camera_stream, args=(queue, camera_idx, calib, stride, skip))
     else:
-        reader = Process(target=video_stream, args=(queue, imagedir, calib, stride, skip))
+        if os.path.isdir(imagedir):
+            reader = Process(target=image_stream, args=(queue, imagedir, calib, stride, skip))
+        else:
+            reader = Process(target=video_stream, args=(queue, imagedir, calib, stride, skip))
 
     reader.start()
 
@@ -65,23 +80,27 @@ def run(cfg, network, imagedir, calib, stride=1, skip=0, viz=False, timeit=False
 
     return slam.terminate()
 
-
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--network', type=str, default='dpvo.pth')
     parser.add_argument('--imagedir', type=str)
+    parser.add_argument('--camera_stream', action="store_true")
     parser.add_argument('--calib', type=str)
     parser.add_argument('--stride', type=int, default=2)
     parser.add_argument('--skip', type=int, default=0)
     parser.add_argument('--buffer', type=int, default=2048)
-    parser.add_argument('--config', default="config/default.yaml")
+    parser.add_argument('--config', default="config/fast.yaml")
     parser.add_argument('--timeit', action='store_true')
     parser.add_argument('--viz', action="store_true")
     parser.add_argument('--plot', action="store_true")
     parser.add_argument('--save_reconstruction', action="store_true")
     parser.add_argument('--save_trajectory', action="store_true")
+
+    parser.set_defaults(camera_stream=False)
+
     args = parser.parse_args()
+
 
     cfg.merge_from_file(args.config)
     cfg.BUFFER_SIZE = args.buffer
@@ -90,7 +109,19 @@ if __name__ == '__main__':
     print("Running with config...")
     print(cfg)
 
-    pred_traj = run(cfg, args.network, args.imagedir, args.calib, args.stride, args.skip, args.viz, args.timeit, args.save_reconstruction)
+    pred_traj = run(cfg, 
+                    args.network, 
+                    args.imagedir, 
+                    args.calib, 
+                    args.stride, 
+                    args.skip,
+                    args.camera_stream, 
+                    args.viz, 
+                    args.timeit, 
+                    args.save_reconstruction)
+
+    print(pred_traj)
+
     name = Path(args.imagedir).stem
 
     if args.save_reconstruction:

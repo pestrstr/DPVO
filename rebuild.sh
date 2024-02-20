@@ -1,4 +1,8 @@
 cd DPViewer/
 pip install .
 cd ..
-python demo.py --imagedir=movies/IMG_0492.MOV --calib=calib/iphone.txt --stride=5 --plot --viz
+python demo.py  --imagedir ./movies/rgb_sequence \
+                --calib=calib/d435.txt \
+                --stride=1 --plot --viz \
+                --config config/default.yaml \
+                --save_reconstruction --save_trajectory 
