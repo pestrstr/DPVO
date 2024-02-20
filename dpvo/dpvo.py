@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import os
 import torch.nn.functional as F
 
 from . import fastba
@@ -152,13 +153,15 @@ class DPVO:
 
     def get_pose(self, t):
         if t in self.traj:
+            print(self.traj[t])
             return SE3(self.traj[t])
 
         t0, dP = self.delta[t]
         return dP * self.get_pose(t0)
 
-    def terminate(self):
+    def dump_poses(self, dir):
         """ interpolate missing poses """
+        #NOTE: poses will be dumped for all the frames if args.stride==1
         self.traj = {}
         for i in range(self.n):
             self.traj[self.tstamps_[i].item()] = self.poses_[i]
@@ -168,12 +171,14 @@ class DPVO:
         poses = poses.inv().data.cpu().numpy()
         tstamps = np.array(self.tlist, dtype=np.float)
 
-        print("CHECK")
-        if self.viewer is not None:
-            self.viewer.join()
-            print("DOES VIEWER JOIN?")
+        np.save(os.path.join('poses', dir), poses, allow_pickle=True)
 
         return poses, tstamps
+        
+    def terminate(self):
+        if self.viewer is not None:
+            self.viewer.close()
+            print(self.viewer.join())
 
     def corr(self, coords, indicies=None):
         """ local correlation volume """

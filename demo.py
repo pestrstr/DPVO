@@ -69,6 +69,8 @@ def run(cfg, network, imagedir, calib, stride=1, skip=0, camera_input=False, viz
         slam.update()
 
     reader.join()
+    
+    slam.dump_poses(Path(imagedir).stem)
 
     if save_reconstruction:
         points = slam.points_.cpu().numpy()[:slam.m]

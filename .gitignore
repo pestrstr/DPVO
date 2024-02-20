@@ -162,3 +162,4 @@ datasets/TartanAir
 TartanAirResults
 thirdparty/*
 movies/*
+poses/*
