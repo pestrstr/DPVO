@@ -15,6 +15,7 @@
 typedef unsigned char uchar;
 
 std::mutex mtx;
+std::mutex mtx_update;
 
 class Viewer {
   public:
@@ -42,6 +43,7 @@ class Viewer {
 
     // main visualization
     void run();
+    void loop();
 
   private:
     bool running;
@@ -69,16 +71,15 @@ class Viewer {
 
     double filterThresh;
     void drawPoints();
+    void drawPointsCPU();
     void drawPoses();
-
     void initVBO();
     void destroyVBO();
 
     // OpenGL buffers (vertex buffer, color buffer)
     GLuint vbo, cbo;
-    struct cudaGraphicsResource *xyz_res;
-    struct cudaGraphicsResource *rgb_res;
-
+    struct cudaGraphicsResource *xyz_res=nullptr;
+    struct cudaGraphicsResource *rgb_res=nullptr;
 };
 
 Viewer::Viewer(
@@ -97,6 +98,10 @@ Viewer::Viewer(
   ux = 0;
   h = image.size(0);
   w = image.size(1);
+
+  transformMatrix = poseToMatrix(poses);
+  transformMatrix = transformMatrix.transpose(1,2);
+  transformMatrix = transformMatrix.contiguous().to(torch::kCPU);
 
   tViewer = std::thread(&Viewer::run, this);
 };
@@ -119,11 +124,13 @@ void Viewer::drawPoints() {
   uchar *rgb_data = colors.data_ptr<uchar>();
   cudaMemcpy(rgb_ptr, rgb_data, rgb_bytes, cudaMemcpyDeviceToDevice);
 
+  glPointSize(3.0f);
+  glEnable(GL_DEPTH_TEST);
+
   // bind color buffer
   glBindBuffer(GL_ARRAY_BUFFER, cbo);
   glColorPointer(3, GL_UNSIGNED_BYTE, 0, 0);
   glEnableClientState(GL_COLOR_ARRAY);
-
   glBindBuffer(GL_ARRAY_BUFFER, vbo);
   glVertexPointer(3, GL_FLOAT, 0, 0);
 
@@ -132,10 +139,22 @@ void Viewer::drawPoints() {
   glDrawArrays(GL_POINTS, 0, points.size(0));
   glDisableClientState(GL_VERTEX_ARRAY);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
-
   glDisableClientState(GL_COLOR_ARRAY);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
 
+void Viewer::drawPointsCPU() {
+  auto b = points.cpu();
+  float *xyz_data = b.data_ptr<float>();
+  auto c = colors.cpu();
+  uchar *rgb_data = c.data_ptr<uchar>();
+  glPointSize(3.0f);
+  glBegin(GL_POINTS);
+  for (auto i = 0; i < points.size(0); i+=3) {
+    glColor4ub(*(rgb_data + i), *(rgb_data + i + 1), *(rgb_data + i + 2), 255);
+    glVertex3f(*(xyz_data + i), *(xyz_data + i + 1), *(xyz_data + 2 + i));
+  }
+  glEnd();
 }
 
 
@@ -190,11 +209,12 @@ void Viewer::initVBO() {
 
   // initialize buffer object
   unsigned int size_xyz = 3 * points.size(0) * sizeof(float);
-  glBufferData(GL_ARRAY_BUFFER, size_xyz, 0, GL_DYNAMIC_DRAW);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBufferData(GL_ARRAY_BUFFER, size_xyz, nullptr, GL_DYNAMIC_DRAW);
+  // glBindBuffer(GL_ARRAY_BUFFER, 0);
 
   // register this buffer object with CUDA
   cudaGraphicsGLRegisterBuffer(&xyz_res, vbo, cudaGraphicsMapFlagsWriteDiscard);
+  // cudaGraphicsGLRegisterBuffer(&xyz_res, vbo, cudaGraphicsMapFlagsNone);
   cudaGraphicsMapResources(1, &xyz_res, 0);
 
   glGenBuffers(1, &cbo);
@@ -202,12 +222,21 @@ void Viewer::initVBO() {
 
   // initialize buffer object
   unsigned int size_rgb = 3 * points.size(0) * sizeof(uchar);
-  glBufferData(GL_ARRAY_BUFFER, size_rgb, 0, GL_DYNAMIC_DRAW);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBufferData(GL_ARRAY_BUFFER, size_rgb, nullptr, GL_DYNAMIC_DRAW);
+  // glBindBuffer(GL_ARRAY_BUFFER, 0);
 
   // register this buffer object with CUDA
   cudaGraphicsGLRegisterBuffer(&rgb_res, cbo, cudaGraphicsMapFlagsWriteDiscard);
+  // cudaGraphicsGLRegisterBuffer(&rgb_res, cbo, cudaGraphicsMapFlagsNone);
   cudaGraphicsMapResources(1, &rgb_res, 0);
+
+  // DEBUG - Check correct initialization of CUDA buffer object
+  // std::cout << cudaGetLastError() << std::endl;
+  // std::cout << xyz_res << std::endl;
+  // std::cout << rgb_res << std::endl;
+
+  // Unbind buffer after registration
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 void Viewer::destroyVBO() {
@@ -220,6 +249,14 @@ void Viewer::destroyVBO() {
   cudaGraphicsUnregisterResource(rgb_res);
   glBindBuffer(1, cbo);
   glDeleteBuffers(1, &cbo);
+}
+
+void Viewer::loop() {
+  mtx_update.lock();
+  transformMatrix = poseToMatrix(poses);
+  transformMatrix = transformMatrix.transpose(1, 2);
+  transformMatrix = transformMatrix.contiguous().to(torch::kCPU);
+  mtx_update.unlock();
 }
 
 void Viewer::run() {
@@ -268,13 +305,15 @@ void Viewer::run() {
     Visualization3D_display.Activate(Visualization3D_camera);
   
     // maybe possible to draw cameras without copying to CPU?
-    transformMatrix = poseToMatrix(poses);
-    transformMatrix = transformMatrix.transpose(1,2);
-    transformMatrix = transformMatrix.contiguous().to(torch::kCPU);
+    // transformMatrix = poseToMatrix(poses);
+    // transformMatrix = transformMatrix.transpose(1,2);
+    // transformMatrix = transformMatrix.contiguous().to(torch::kCPU);
 
     // draw poses using OpenGL
-    drawPoints();
+    mtx_update.lock();
+    drawPointsCPU();
     drawPoses();
+    mtx_update.unlock();
 
     mtx.lock();
     if (redraw) {
@@ -298,6 +337,7 @@ void Viewer::run() {
 }
 
 
+
 namespace py = pybind11;
 
 PYBIND11_MODULE(dpviewerx, m) {
@@ -309,5 +349,6 @@ PYBIND11_MODULE(dpviewerx, m) {
                   const torch::Tensor,
                   const torch::Tensor>())
     .def("update_image", &Viewer::update_image)
+    .def("loop", &Viewer::loop)
     .def("join", &Viewer::join);
 }

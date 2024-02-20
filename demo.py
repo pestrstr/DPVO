@@ -86,6 +86,7 @@ if __name__ == '__main__':
     cfg.merge_from_file(args.config)
     cfg.BUFFER_SIZE = args.buffer
 
+    print("Running on device: ", torch.cuda.get_device_name(0))
     print("Running with config...")
     print(cfg)
 
