@@ -339,7 +339,7 @@ void Viewer::run() {
 
     // draw poses using OpenGL
     mtx_update.lock();
-    // drawPointsCPU();
+    drawPointsCPU();
     drawPoses();
     mtx_update.unlock();
 

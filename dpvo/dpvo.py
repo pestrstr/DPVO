@@ -174,7 +174,13 @@ class DPVO:
         np.save(os.path.join('poses', dir), poses, allow_pickle=True)
 
         return poses, tstamps
-        
+    
+    def dump_patch_depths(self, dir):
+        #NOTE: only dumping patch depths for the first frame of the sequence
+        start_frame_patches = self.patches_[0]
+        # x, y, inv_depths = start_frame_patches[:, :, 1, 1].T      
+        np.save(os.path.join('depths', dir), start_frame_patches[:, :, 1, 1].T, allow_pickle=True)
+
     def terminate(self):
         if self.viewer is not None:
             self.viewer.close()
@@ -300,7 +306,14 @@ class DPVO:
             
             points = pops.point_cloud(SE3(self.poses), self.patches[:, :self.m], self.intrinsics, self.ix[:self.m])
             points = (points[...,1,1,:3] / points[...,1,1,3:]).reshape(-1, 3)
+            print("Updating pcd - currently there are", len(points), " points")
+
             self.points_[:len(points)] = points[:]
+
+            # To check how many patches are non-zero:
+            # ((self.patches[0] != 0).view(self.patches[0].size(0), -1).sum(dim=1) > 0).sum()
+            print(self.points_.shape)
+            print(self.patches.shape)
                 
     def __edges_all(self):
         return flatmeshgrid(
@@ -392,12 +405,16 @@ class DPVO:
         self.append_factors(*self.__edges_forw())
         self.append_factors(*self.__edges_back())
 
+        # First update is done after 8 frames, to be sure that there is enough motion for optimization
         if self.n == 8 and not self.is_initialized:
             self.is_initialized = True            
 
+            # After colleting the first 8 frames, the update method for optimization is called 12 times
             for itr in range(12):
                 self.update()
         
+        # When self.n > 8, besides updating the poses and depths with an optimization step, 
+        # the keyframe method is also called to possibly delete some frames from the keyframe list.
         elif self.is_initialized:
             self.update()
             self.keyframe()
