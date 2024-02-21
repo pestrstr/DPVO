@@ -167,6 +167,12 @@ void Viewer::drawPoses() {
   const int NUM_POINTS = 8;
   const int NUM_LINES = 10;
 
+  const float AXIS_LENGTH = 0.2; // Adjust length as needed
+
+  const float X_AXIS[3] = {1.0f, 0.0f, 0.0f};
+  const float Y_AXIS[3] = {0.0f, 1.0f, 0.0f};
+  const float Z_AXIS[3] = {0.0f, 0.0f, 1.0f};
+
   const float CAM_POINTS[NUM_POINTS][3] = {
     { 0,   0,   0},
     {-1,  -1, 1.5},
@@ -200,6 +206,20 @@ void Viewer::drawPoses() {
         glVertex3f(SZ*CAM_POINTS[v][0], SZ*CAM_POINTS[v][1], SZ*CAM_POINTS[v][2]);
       }
       glEnd();
+
+      // Draw axes transformed by current pose
+      glBegin(GL_LINES);
+      glColor3f(1.0f, 0.0f, 0.0f);
+      glVertex3f(0.0f, 0.0f, 0.0f);
+      glVertex3f(AXIS_LENGTH * X_AXIS[0], AXIS_LENGTH * X_AXIS[1], AXIS_LENGTH * X_AXIS[2]);
+      glColor3f(0.0f, 1.0f, 0.0f);
+      glVertex3f(0.0f, 0.0f, 0.0f);
+      glVertex3f(AXIS_LENGTH * Y_AXIS[0], AXIS_LENGTH * Y_AXIS[1], AXIS_LENGTH * Y_AXIS[2]);
+      glColor3f(0.0f, 0.0f, 1.0f);
+      glVertex3f(0.0f, 0.0f, 0.0f);
+      glVertex3f(AXIS_LENGTH * Z_AXIS[0], AXIS_LENGTH * Z_AXIS[1], AXIS_LENGTH * Z_AXIS[2]);
+      glEnd();
+      glPopMatrix();
 
       glPopMatrix();
   }
