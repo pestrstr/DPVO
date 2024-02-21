@@ -188,18 +188,22 @@ void Viewer::drawPoses() {
 
   const float SZ = 0.05;
 
-  glColor3f(0,0.5,1);
+  // glColor3f(1,1,0);
   glLineWidth(1.5);
 
   for (int i=0; i<nFrames; i++) {
 
-      if (i + 1 == nFrames)
-        glColor3f(1,0,0);
-
+      // if (i + 1 == nFrames)
+      //   glColor3f(1,0,1);
       glPushMatrix();
       glMultMatrixf((GLfloat*) (tptr + 4*4*i));
 
       glBegin(GL_LINES);
+      if (i == 0) 
+        glColor3f(1,1,0);
+      else
+        glColor3f(1,0,1);
+      
       for (int j=0; j<NUM_LINES; j++) {
         const int u = CAM_LINES[j][0], v = CAM_LINES[j][1];
         glVertex3f(SZ*CAM_POINTS[u][0], SZ*CAM_POINTS[u][1], SZ*CAM_POINTS[u][2]);
