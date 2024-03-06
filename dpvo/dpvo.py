@@ -178,8 +178,11 @@ class DPVO:
     def dump_patch_depths(self, dir):
         #NOTE: only dumping patch depths for the first frame of the sequence
         start_frame_patches = self.patches_[0]
-        # x, y, inv_depths = start_frame_patches[:, :, 1, 1].T      
-        np.save(os.path.join('depths', dir), start_frame_patches[:, :, 1, 1].T, allow_pickle=True)
+        x, y, inv_depths = start_frame_patches[:, :, 1, 1].T
+        x = x.data.cpu().numpy()
+        y = y.data.cpu().numpy()
+        inv_depths = inv_depths.data.cpu().numpy()      
+        np.save(os.path.join('depths', dir), (x, y, inv_depths), allow_pickle=True)
 
     def terminate(self):
         if self.viewer is not None:
